@@ -146,3 +146,10 @@ EndOfFile       <- !.
 BEGIN           <- '<' Spacing
 END             <- '>' Spacing
 ```
+
+## References
+
+* Peg.py provides identical PEG syntax as described in [Bryan Ford's PEG Paper](https://bford.info/pub/lang/peg.pdf).
+* Peg.py implements a simplied VM similar to [lpeg](http://www.inf.puc-rio.br/~roberto/lpeg/).
+* Peg.py provides a similar API (`Grammar`, `Grammar.parse()`, `NodeVisitor`, etc) with [parsimonious](https://github.com/erikrose/parsimonious).
+
