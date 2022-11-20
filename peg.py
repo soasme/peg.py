@@ -143,9 +143,16 @@ class NodeVisitor:
             return root[0]
 
 class PegVM:
-    def __init__(self, bc, start=0):
+    def __init__(self, bc, start=0, debug=False):
         self.bc = bc
         self.start = start
+        self.debug = debug
+
+    def debug_print(self, state):
+        s = f'pos={state.pos}, pc={state.pc}, err={state.err}, matching={state.matching}, op={self.bc[state.pc]}'
+        if not state.matching:
+            s += f', calls={state.calls.stack}'
+        print(s)
 
     def run(self, text):
         # Initialize the VM state
@@ -155,9 +162,14 @@ class PegVM:
             # check whether the vm run loop should continue.
             if state.pos > len(text) or state.pc >= len(self.bc):
                 return state
+
+            if self.debug:
+                self.debug_print(state)
+
             if not state.matching:
                 if not self.handle_exit(state):
                     return state
+
             if state.err != PegError.OK:
                 return state
 
@@ -182,6 +194,9 @@ class PegVM:
         # recover the state if no matching but something to backtrack.
         # state is recovered using the last call's state.
         peek = state.calls.pop()
+
+        if self.debug:
+            print(f'peek type is {peek.type}')
 
         if peek.type == "backtrack":
             state.pc = peek.pc
@@ -236,7 +251,6 @@ class PegVM:
 
     def handle_FAIL(self, state, _):
         state.matching = False
-        state.pc += 1
 
     def handle_CHOICE(self, state, offset):
         frame = CallFrame("backtrack", state.pc + offset, state.pos, state.caps.size())
@@ -249,7 +263,6 @@ class PegVM:
         else:
             state.pc += offset
             state.matching = True
-            # ??? discarding the last call frame seems to be wrong.
             state.calls.pop()
 
     def handle_LOOP(self, state, offset):
@@ -756,6 +769,8 @@ class BootstrapVisitor(NodeVisitor):
                 return +children[1]
 
     def visit_Sequence(self, node, children):
+        if not children:
+            return None
         result = children[0]
         for child in children[1:]:
             result = result * child
@@ -824,7 +839,7 @@ class Grammar:
                 self.bc[idx] = (op[0], self.bc_indices[op[1]]-idx)
 
 
-    def parse(self, text, rule=None, strict_eot=False):
+    def parse(self, text, rule=None, strict_eot=False, debug=False):
         if not rule:
             start = 0
         elif rule in self.bc_indices:
@@ -832,7 +847,7 @@ class Grammar:
         else:
             raise ValueError('rule not found: ' + rule)
 
-        vm = PegVM(self.bc, start)
+        vm = PegVM(self.bc, start, debug=debug)
         state = vm.run(text)
 
         if not state or (strict_eot and state.pos != len(text)):

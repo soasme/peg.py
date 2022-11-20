@@ -107,6 +107,60 @@ def test_bootstrap_either123():
     assert gram.parse("c", rule='rule')
     assert not gram.parse("d", rule='rule')
 
+def test_bootstrap_neg_choice():
+    gram = Grammar("""
+    rule <- !ab .
+    ab <- "a" / "b"
+    """)
+    assert not gram.parse("a", rule='rule')
+    assert not gram.parse("b", rule='rule')
+    assert gram.parse("c", rule='rule')
+
+def test_bootstrap_neg_neg():
+    gram = Grammar(r"""
+    rule <- !bc .
+    bc <- b / c
+    b <- "b" e 
+    c <- "c" e
+    e <- ![a-z] s
+    s <- [ \n]*
+    """)
+    assert gram.parse("a", rule='rule')
+    assert not gram.parse("b", rule='rule')
+    assert not gram.parse("c", rule='rule')
+
+def test_bootstrap_eot_zeroormore():
+    gram = Grammar("""
+    rule <- "a" [a-f]*
+    """)
+    assert gram.parse("a", rule='rule')
+    assert gram.parse("abc", rule='rule')
+    assert gram.parse("abcdef", rule='rule')
+
+def test_bootstrap_zig_identifier():
+    gram = Grammar(r"""
+    IDENTIFIER <- !keyword [A-Za-z_] [A-Za-z0-9_]* skip
+    end_of_word <- ![a-zA-Z0-9_] skip
+    KEYWORD_align       <- 'align'       end_of_word
+    KEYWORD_allowzero   <- 'allowzero'   end_of_word
+    keyword <- KEYWORD_align / KEYWORD_allowzero
+    skip <- [ \n]*
+    """)
+    assert not gram.parse("align")
+    assert not gram.parse("allowzero")
+    assert gram.parse("keyword")
+    assert gram.parse("canalign")
+    assert gram.parse("_align", rule='IDENTIFIER')
+    assert gram.parse("align_", rule='IDENTIFIER')
+
+def test_neg_range_set():
+    gram = Grammar("""
+    rule <- ![a-z_] .*
+    """)
+    assert gram.parse("Abc", rule='rule')
+    assert gram.parse("Bbc", rule='rule')
+    assert not gram.parse("_Bbc", rule='rule')
+
 def test_bootstrap_either_preemptive():
     gram = Grammar("""
     rule <- "ab" / "abc"
@@ -161,7 +215,7 @@ def test_bootstrap_bold(s):
     result = gram.parse(input)
     assert result
 
-    visitor = BoldVisitor(gram, input)
+    visitor = BoldVisitor(gram)
     assert visitor.visit(result) == Bold(s)
 
 @given(s=st.text(alphabet=string.ascii_letters + string.digits))
@@ -189,53 +243,8 @@ def test_bold(s):
     result = gram.parse(input)
     assert result
 
-    visitor = BoldVisitor(gram, input)
+    visitor = BoldVisitor(gram)
     assert visitor.visit(result) == Bold(s)
-
-class MathGrammar:
-    Expr = rule_("Sum")
-    Sum = rule_("Product") * (rule_('SumOp') * rule_("Product")).zeroormore()
-    SumOp = str_("+") | str_("-")
-    Product = rule_("Power") * (rule_('ProductOp') * rule_("Power")).zeroormore()
-    ProductOp = str_("*") | str_("/")
-    Power = rule_("Value") * (str_("**") * rule_("Power")).zeroormore()
-    Value = str_("(") * rule_("Expr") * str_(")") | range_("0", "9").onceormore()
-
-class MathVisitor(NodeVisitor):
-    def generic_visit(self, node, _):
-        return node.text
-    def visit_Value(self, node, children):
-        if not children:
-            return int(node.text)
-        _, expr, _ = children
-        return expr
-    def visit_Power(self, node, children):
-        if len(children) == 1:
-            return children[0]
-        pow = sum(children[1:])
-        return children[0] ** pow
-    def visit_Product(self, node, children):
-        if len(children) == 1:
-            return children[0]
-        prod = children[0]
-        for i in range(1, len(children), 2):
-            if children[i] == '*':
-                prod *= children[i+1]
-            else:
-                prod /= children[i+1]
-        return prod
-    def visit_Sum(self, node, children):
-        if len(children) == 1:
-            return children[0]
-        sum = children[0]
-        for i in range(1, len(children), 2):
-            if children[i] == '+':
-                sum += children[i+1]
-            else:
-                sum -= children[i+1]
-        return sum
-    def visit_Expr(self, node, children):
-        return children[0]
 
 @given(
     a=st.integers(min_value=0, max_value=3),
@@ -247,13 +256,58 @@ class MathVisitor(NodeVisitor):
     d=st.integers(min_value=0, max_value=3),
 )
 def test_math_formula(a, a_op, b, b_op, c, c_op, d):
+    class MathGrammar:
+        Expr = rule_("Sum")
+        Sum = rule_("Product") * (rule_('SumOp') * rule_("Product")).zeroormore()
+        SumOp = str_("+") | str_("-")
+        Product = rule_("Power") * (rule_('ProductOp') * rule_("Power")).zeroormore()
+        ProductOp = str_("*") | str_("/")
+        Power = rule_("Value") * (str_("**") * rule_("Power")).zeroormore()
+        Value = str_("(") * rule_("Expr") * str_(")") | range_("0", "9").onceormore()
+    
+    class MathVisitor(NodeVisitor):
+        def generic_visit(self, node, _):
+            return node.text
+        def visit_Value(self, node, children):
+            if not children:
+                return int(node.text)
+            _, expr, _ = children
+            return expr
+        def visit_Power(self, node, children):
+            if len(children) == 1:
+                return children[0]
+            pow = sum(children[1:])
+            return children[0] ** pow
+        def visit_Product(self, node, children):
+            if len(children) == 1:
+                return children[0]
+            prod = children[0]
+            for i in range(1, len(children), 2):
+                if children[i] == '*':
+                    prod *= children[i+1]
+                else:
+                    prod /= children[i+1]
+            return prod
+        def visit_Sum(self, node, children):
+            if len(children) == 1:
+                return children[0]
+            sum = children[0]
+            for i in range(1, len(children), 2):
+                if children[i] == '+':
+                    sum += children[i+1]
+                else:
+                    sum -= children[i+1]
+            return sum
+        def visit_Expr(self, node, children):
+            return children[0]
+    
     input = f'{a}{a_op}{b}{b_op}{c}{c_op}{d}'
 
     gram = Grammar(MathGrammar)
     result = gram.parse(input)
     assert result
 
-    visitor = MathVisitor(gram, input)
+    visitor = MathVisitor(gram)
     try:
         expected = eval(input)
 
