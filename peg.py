@@ -195,9 +195,6 @@ class PegVM:
         # state is recovered using the last call's state.
         peek = state.calls.pop()
 
-        if self.debug:
-            print(f'peek type is {peek.type}')
-
         if peek.type == "backtrack":
             state.pc = peek.pc
             state.pos = peek.pos

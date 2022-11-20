@@ -168,7 +168,7 @@ def test_compile_positive():
 
     state = vm.run("bb")
     assert state.pos == 0
-    assert state.pc == 4
+    assert state.pc == 3
     assert state.err == PegError.NO_MATCH
 
 def test_compile_negative():
@@ -185,7 +185,7 @@ def test_compile_negative():
 
     state = vm.run("ab")
     assert state.pos == 1
-    assert state.pc == 4
+    assert state.pc == 3
     assert state.err == PegError.NO_MATCH
 
 def test_compile_set():
@@ -357,5 +357,3 @@ def test_grammar_bad_range():
             a = range_("a", "b", "c")
     except ValueError:
         pass
-    else:
-        pytest.raises(ValueError)

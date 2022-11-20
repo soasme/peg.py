@@ -239,7 +239,7 @@ def test_positive_predicate():
 
     state = vm.run("bb")
     assert state.pos == 0
-    assert state.pc == 4
+    assert state.pc == 3
     assert state.err == PegError.NO_MATCH
 
 def test_capture():
